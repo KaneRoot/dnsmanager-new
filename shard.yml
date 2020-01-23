@@ -1,0 +1,22 @@
+name: dnsmanager
+version: 0.1.0
+
+authors:
+  - karchnu <karchnu@karchnu.fr>
+
+description: |
+  A registrar tool.
+
+dependencies:
+  ipc:
+    git: https://git.karchnu.fr/WeirdOS/ipc.cr
+  dodb:
+    git: https://git.karchnu.fr/WeirdOS/dodb.cr
+  authd:
+    git: https://git.karchnu.fr/WeirdOS/authd
+
+targets:
+  dnsmanager:
+    main: src/main.cr
+
+license: MIT

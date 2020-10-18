@@ -1,5 +1,5 @@
 name: dnsmanager
-version: 0.1.0
+version: 0.2.0
 
 authors:
   - karchnu <karchnu@karchnu.fr>
@@ -9,11 +9,14 @@ description: |
 
 dependencies:
   ipc:
-    git: https://git.karchnu.fr/WeirdOS/ipc.cr
+    git: https://git.baguette.netlib.re/Baguette/ipc.cr
   dodb:
-    git: https://git.karchnu.fr/WeirdOS/dodb.cr
+    git: https://git.baguette.netlib.re/Baguette/dodb.cr
   authd:
-    git: https://git.karchnu.fr/WeirdOS/authd
+    git: https://git.baguette.netlib.re/Baguette/authd
+  baguette-crystal-base:
+    git: https://git.baguette.netlib.re/Baguette/baguette-crystal-base
+    branch: master
 
 targets:
   dnsmanager:

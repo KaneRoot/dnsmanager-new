@@ -1,14 +1,20 @@
-require "http/server"
+# require "http/server"
+require "option_parser"
 
 require "ipc"
 require "ipc/json"
 require "authd"
 require "baguette-crystal-base"
 
-class Context
-	class_property service_name = "dnsmanager"
-	class_property recreate_indexes = false
-	class_property print_timer      = false
+class Baguette::Configuration
+	class DNSManager < IPC
+		property service_name      : String  = "dnsmanager"
+		property recreate_indexes  : Bool    = false
+		property storage_directory : String  = "storage"
+
+		def initialize
+		end
+	end
 end
 
 module DNSManager
@@ -23,26 +29,23 @@ module DNSManager
 end
 
 
-require "./cli-parser"
 require "./storage.cr"
 require "./network.cr"
 
 
 class DNSManager::Service < IPC::Server
-	getter storage_directory  : String
+	property configuration    : Baguette::Configuration::DNSManager
 	getter storage            : DNSManager::Storage
 	getter logged_users       : Hash(Int32, AuthD::User::Public)
-	# getter logged_connections : Hash(Int32, IPC::Connection)
 
 	@authd : AuthD::Client
 
-	def initialize(service_name, @storage_directory : String, @authd : AuthD::Client)
-		@storage = DNSManager::Storage.new @storage_directory
+	def initialize(@configuration, @authd : AuthD::Client)
+		@storage = DNSManager::Storage.new @configuration.storage_directory
 
 		@logged_users       = Hash(Int32, AuthD::User::Public).new
-		# @logged_connections = Hash(Int32, IPC::Connection).new
 
-		super service_name
+		super @configuration.service_name
 	end
 
 	def get_logged_user(event : IPC::Event::Events)
@@ -118,13 +121,13 @@ class DNSManager::Service < IPC::Server
 	end
 
 	def run
-		Baguette::Log.title "Starting #{Context.service_name}"
+		Baguette::Log.title "Starting #{@configuration.service_name}"
 
 		self.loop do |event|
 			begin
 				case event
 				when IPC::Event::Timer
-					Baguette::Log.debug "Timer" if Context.print_timer
+					Baguette::Log.debug "Timer" if @configuration.print_ipc_timer
 
 				when IPC::Event::Connection
 					Baguette::Log.debug "connection from #{event.fd}"
@@ -133,7 +136,6 @@ class DNSManager::Service < IPC::Server
 					Baguette::Log.debug "disconnection from #{event.fd}"
 					fd = event.fd
 
-					# @logged_connections.delete fd
 					@logged_users.delete fd
 
 				when IPC::Event::MessageSent
@@ -153,24 +155,79 @@ class DNSManager::Service < IPC::Server
 	end
 end
 
-def dnsmanager_webserver_init
-	server = HTTP::Server.new do |context|
-		context.response.content_type = "text/plain"
-		pp! context.request
-		context.response.print "Hello. New version of dnsmanager, soon."
+
+def main
+
+	# First option parsing, same with all Baguette (service) applications.
+	simulation, no_configuration, configuration_file = Baguette::Configuration.option_parser
+
+	# Authd configuration.
+	authd_configuration = if no_configuration
+		Baguette::Log.info "do not load a configuration file."
+		Baguette::Configuration::Auth.new
+	else
+		# Configuration file is for dnsmanagerd.
+		Baguette::Configuration::Auth.get || Baguette::Configuration::Auth.new
+	end
+	if key_file = authd_configuration.shared_key_file
+		authd_configuration.shared_key = File.read(key_file).chomp
 	end
 
-	address = server.bind_tcp Context.webserver_domain, Context.webserver_port
-	puts "Listening on http://#{address}"
+	# DNSManagerd configuration.
+	configuration = if no_configuration
+		Baguette::Log.info "do not load a configuration file."
+		Baguette::Configuration::DNSManager.new
+	else
+		# In case there is a configuration file helping with the parameters.
+		Baguette::Configuration::DNSManager.get(configuration_file) ||
+			Baguette::Configuration::DNSManager.new
+	end
 
-	server
+
+	OptionParser.parse do |parser|
+		parser.on "-v verbosity-level", "--verbosity level", "Verbosity." do |opt|
+			Baguette::Log.info "Verbosity level: #{opt}"
+			configuration.verbosity = opt.to_i
+		end
+
+		parser.on "-k key-file", "--key-file file", "Key file." do |opt|
+			authd_configuration.shared_key = File.read(opt).chomp
+			Baguette::Log.debug "Authd key: #{authd_configuration.shared_key.not_nil!}"
+		end
+
+		# IPC Service options
+		parser.on "-s service_name", "--service_name service_name", "Service name (IPC)." do |service_name|
+			Baguette::Log.info "Service name: #{service_name}"
+			configuration.service_name = service_name
+		end
+
+		parser.on "-r storage_directory", "--root storage_directory", "Storage directory." do |storage_directory|
+			Baguette::Log.info "Storage directory: #{storage_directory}"
+			configuration.storage_directory = storage_directory
+		end
+
+
+		parser.on "-h", "--help", "Show this help" do
+			puts parser
+			exit 0
+		end
+	end
+
+	if authd_configuration.shared_key.nil?
+		Baguette::Log.error "No authd key file: cannot continue"
+		exit 1
+	end
+
+	if simulation
+		pp! authd_configuration, configuration
+		exit 0
+	end
+
+	authd = AuthD::Client.new
+	authd.key = authd_configuration.shared_key.not_nil!
+
+	service = DNSManager::Service.new configuration, authd
+	service.run
 end
 
-authd = AuthD::Client.new
-authd.key = Context.authd_key.not_nil!
-server = dnsmanager_webserver_init
-
-spawn server.listen
-
-service = DNSManager::Service.new Context.service_name, Context.storage_directory, authd
-service.run
+main

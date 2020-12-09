@@ -38,7 +38,7 @@ class DNSManager::Service < IPC::Server
 	getter storage            : DNSManager::Storage
 	getter logged_users       : Hash(Int32, AuthD::User::Public)
 
-	@authd : AuthD::Client
+	property authd            : AuthD::Client
 
 	def initialize(@configuration, @authd : AuthD::Client)
 		@storage = DNSManager::Storage.new @configuration.storage_directory
@@ -55,22 +55,7 @@ class DNSManager::Service < IPC::Server
 	end
 
 	def decode_token(token : String)
-		@auth.decode_token token
-	end
-
-	def get_user_data(uid : Int32)
-		@storage.user_data_per_user.get uid.to_s
-	rescue e : DODB::MissingEntry
-		entry = UserData.new uid
-		entry
-	end
-
-	def get_user_data(user : ::AuthD::User::Public)
-		get_user_data user.uid
-	end
-
-	def update_user_data(user_data : UserData)
-		@storage.user_data_per_user.update_or_create user_data.uid.to_s, user_data
+		@authd.decode_token token
 	end
 
 	def handle_request(event : IPC::Event::MessageReceived)

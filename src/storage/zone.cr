@@ -14,7 +14,7 @@ class DNSManager::Storage::Zone
 	abstract class ResourceRecord
 		include JSON::Serializable
 
-		use_json_discriminator "type", {
+		use_json_discriminator "rrtype", {
 				a:      A,
 				aaaa:   AAAA,
 				soa:    SOA,
@@ -27,7 +27,7 @@ class DNSManager::Storage::Zone
 			}
 
 		# Used to discriminate between classes.
-		property type   : String = ""
+		property rrtype   : String = ""
 
 		property name   : String
 		property ttl    : UInt32
@@ -35,7 +35,7 @@ class DNSManager::Storage::Zone
 
 		# zone class is omited, it always will be IN in our case.
 		def initialize(@name, @ttl, @target)
-			@type = self.name.downcase.gsub /dnsmanager::storage::zone::/, ""
+			@rrtype = self.class.name.downcase.gsub /dnsmanager::storage::zone::/, ""
 		end
 	end
 
@@ -51,7 +51,7 @@ class DNSManager::Storage::Zone
 		def initialize(@name, @ttl, @target,
 			@mname, @rname,
 			@serial = 0, @refresh = 86400, @retry = 7200, @expire = 3600000)
-			@type = "soa"
+			@rrtype = "soa"
 		end
 	end
 
@@ -71,7 +71,7 @@ class DNSManager::Storage::Zone
 	class MX < ResourceRecord
 		property priority  : UInt32 = 10
 		def initialize(@name, @ttl, @target, @priority = 10)
-			@type = "mx"
+			@rrtype = "mx"
 		end
 	end
 
@@ -81,7 +81,7 @@ class DNSManager::Storage::Zone
 		property priority : UInt32 = 10
 		property weight   : UInt32 = 10
 		def initialize(@name, @ttl, @target, @port, @protocol = "tcp", @priority = 10, @weight = 10)
-			@type = "srv"
+			@rrtype = "srv"
 		end
 	end
 

@@ -21,5 +21,7 @@ dependencies:
 targets:
   dnsmanager:
     main: src/main.cr
+  dnsmanager-client:
+    main: src/client/main.cr
 
 license: MIT

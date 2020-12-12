@@ -9,6 +9,7 @@ class DNSManager::Storage::Zone
 	def initialize(@domain)
 	end
 
+	alias Error = String
 
 	# Store a Resource Record: A, AAAA, TXT, PTR, CNAME…
 	abstract class ResourceRecord
@@ -27,7 +28,7 @@ class DNSManager::Storage::Zone
 			}
 
 		# Used to discriminate between classes.
-		property rrtype   : String = ""
+		property rrtype : String = ""
 
 		property name   : String
 		property ttl    : UInt32
@@ -36,6 +37,10 @@ class DNSManager::Storage::Zone
 		# zone class is omited, it always will be IN in our case.
 		def initialize(@name, @ttl, @target)
 			@rrtype = self.class.name.downcase.gsub /dnsmanager::storage::zone::/, ""
+		end
+
+		def get_error : Error?
+			nil
 		end
 	end
 
@@ -88,4 +93,33 @@ class DNSManager::Storage::Zone
 	def to_s(io : IO)
 		io << "TEST"
 	end
+
+	def get_errors? : Array(Error)
+		errors = [] of Error
+		unless Zone.is_domain_valid? @domain
+			errors << "invalid domain"
+		end
+
+		@resources.each do |r|
+			if error = r.get_error
+				errors << error
+			end
+		end
+
+		errors
+	end
+
+	# This regex only is "good enough for now".
+	def self.is_domain_valid?(domain) : Bool
+		if domain =~ /^(((?!-))(xn--|_{1,1})?[a-z0-9-]{0,61}[a-z0-9]{1,1}\.)*((xn--)?[a-z0-9][a-z0-9\-]{0,60}[a-z0-9]|(xn--)?[a-z0-9]{1,60})\.[a-z]{2,}$/
+			true
+		else
+			false
+		end
+	rescue e
+		Baguette::Log.error "invalid zone domain #{domain}: #{e}"
+		false
+	end
+
+
 end

@@ -17,9 +17,9 @@ end
 
 require "./parser.cr"
 
-#def read_searches
-#	Array(DNSManager::Request::BLAH).from_json_files Context.args.not_nil!
-#end
+def read_zones
+	Array(DNSManager::Storage::Zone).from_json_files Context.args.not_nil!
+end
 
 class Actions
 	property the_call     = {} of String => Proc(Nil)
@@ -34,7 +34,8 @@ class Actions
 		#
 
 		# Maintainance
-		@the_call["admin-maintainance"]    = ->admin_maintainance
+		@the_call["admin-maintainance"] = ->admin_maintainance
+		@the_call["user-zone-add"]      = ->user_zone_add
 	end
 
 	def admin_maintainance
@@ -61,6 +62,18 @@ class Actions
 					pp! sub
 					pp! @dnsmanagerd.admin_maintainance key, sub
 				end
+			rescue e
+				puts "error for admin_maintainance #{subject}: #{e.message}"
+			end
+		end
+	end
+
+	def user_zone_add
+		zones = read_zones
+		zones.each do |zone|
+			begin
+				pp! zone
+				pp! @dnsmanagerd.user_zone_add zone
 			rescue e
 				puts "error for admin_maintainance #{subject}: #{e.message}"
 			end

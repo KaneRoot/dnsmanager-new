@@ -40,7 +40,7 @@ class DNSManager::Service < IPC::Server
 	end
 
 	def get_logged_user(event : IPC::Event::Events)
-		fd = event.connection.fd
+		fd = event.fd
 
 		@logged_users[fd]?
 	end

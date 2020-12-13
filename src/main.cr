@@ -48,8 +48,6 @@ class DNSManager::Service < IPC::Server
 	end
 
 	def handle_request(event : IPC::Event::MessageReceived)
-		pp! "hello", event
-
 		request_start = Time.utc
 
 		request = DNSManager.requests.parse_ipc_json event.message

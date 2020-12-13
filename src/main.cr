@@ -40,9 +40,7 @@ class DNSManager::Service < IPC::Server
 	end
 
 	def get_logged_user(event : IPC::Event::Events)
-		fd = event.fd
-
-		@logged_users[fd]?
+		@logged_users[event.fd]?
 	end
 
 	def decode_token(token : String)
@@ -50,6 +48,8 @@ class DNSManager::Service < IPC::Server
 	end
 
 	def handle_request(event : IPC::Event::MessageReceived)
+		pp! "hello", event
+
 		request_start = Time.utc
 
 		request = DNSManager.requests.parse_ipc_json event.message
@@ -99,6 +99,9 @@ class DNSManager::Service < IPC::Server
 	def run
 		Baguette::Log.title "Starting #{@configuration.service_name}"
 
+		@base_timer = configuration.ipc_timer
+		@timer      = configuration.ipc_timer
+
 		self.loop do |event|
 			begin
 				case event
@@ -110,20 +113,26 @@ class DNSManager::Service < IPC::Server
 
 				when IPC::Event::Disconnection
 					Baguette::Log.debug "disconnection from #{event.fd}"
-					fd = event.fd
-
-					@logged_users.delete fd
+					@logged_users.delete event.fd
 
 				when IPC::Event::MessageSent
 					Baguette::Log.debug "message sent to #{event.fd}"
 
 				when IPC::Event::MessageReceived
-					Baguette::Log.debug "message sent to #{event.fd}"
-
+					Baguette::Log.debug "message received from #{event.fd}"
 					handle_request event
+
 				else
 					Baguette::Log.warning "unhandled IPC event: #{event.class}"
+					if event.responds_to?(:fd)
+						fd = event.fd
+						Baguette::Log.warning "closing #{fd}"
+						remove_fd fd
+						@logged_users.delete fd
+					end
+
 				end
+
 			rescue exception
 				Baguette::Log.error "exception: #{typeof(exception)} - #{exception.message}"
 			end

@@ -17,6 +17,9 @@ dependencies:
   baguette-crystal-base:
     git: https://git.baguette.netlib.re/Baguette/baguette-crystal-base
     branch: master
+  ipaddress:
+    github: sija/ipaddress.cr
+
 
 targets:
   dnsmanager:

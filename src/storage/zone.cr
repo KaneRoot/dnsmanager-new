@@ -1,3 +1,4 @@
+require "ipaddress"
 
 # Store a DNS zone.
 class DNSManager::Storage::Zone
@@ -39,8 +40,8 @@ class DNSManager::Storage::Zone
 			@rrtype = self.class.name.downcase.gsub /dnsmanager::storage::zone::/, ""
 		end
 
-		def get_error : Error?
-			nil
+		def get_errors : Array(Error)
+			[] of Error
 		end
 	end
 
@@ -61,8 +62,38 @@ class DNSManager::Storage::Zone
 	end
 
 	class A < ResourceRecord
+		def get_errors : Array(Error)
+			errors = [] of Error
+
+			unless Zone.is_subdomain_valid? @name
+				errors << "invalid subdomain: #{@name}"
+			end
+
+			# TODO: impose a limit on the TTL
+
+			unless Zone.is_ipv4_address_valid? @target
+				errors << "target not valid ipv4: #{@target}"
+			end
+
+			errors
+		end
 	end
 	class AAAA < ResourceRecord
+		def get_errors : Array(Error)
+			errors = [] of Error
+
+			unless Zone.is_subdomain_valid? @name
+				errors << "invalid subdomain: #{@name}"
+			end
+
+			# TODO: impose a limit on the TTL
+
+			unless Zone.is_ipv6_address_valid? @target
+				errors << "target not valid ipv6: #{@target}"
+			end
+
+			errors
+		end
 	end
 	class TXT < ResourceRecord
 	end
@@ -101,7 +132,7 @@ class DNSManager::Storage::Zone
 		end
 
 		@resources.each do |r|
-			if error = r.get_error
+			r.get_errors().each do |error|
 				errors << error
 			end
 		end
@@ -121,5 +152,46 @@ class DNSManager::Storage::Zone
 		false
 	end
 
+	# This regex only is "good enough for now".
+	def self.is_subdomain_valid?(subdomain) : Bool
+		if subdomain =~ /^(((?!-))(xn--|_{1,1})?[a-z0-9-]{0,61}[a-z0-9]{1,1}\.)*(xn--)?[a-z0-9][a-z0-9\-]{0,60}[a-z0-9]*[a-z]+|[a-z]+|[a-z][a-z0-9]+[a-z]+$/
+			true
+		else
+			false
+		end
+	rescue e
+		Baguette::Log.error "invalid zone subdomain #{subdomain}: #{e}"
+		false
+	end
+
+	# This only is "good enough for now".
+	# Regex only matches for invalid characters.
+	def self.is_ipv4_address_valid?(address) : Bool
+		if ! address =~ /^[0-9\.]+$/
+			false
+		elsif ip = IPAddress::IPv4.new address
+			true
+		else
+			false
+		end
+	rescue e
+		Baguette::Log.warning "wrong IPv4 address: #{address}"
+		false
+	end
+
+	# This only is "good enough for now".
+	# Regex only matches for invalid characters.
+	def self.is_ipv6_address_valid?(address) : Bool
+		if ! address =~ /^[0-9a-f:]+$/
+			false
+		elsif ip = IPAddress::IPv6.new address
+			true
+		else
+			false
+		end
+	rescue e
+		Baguette::Log.warning "wrong IPv4 address: #{address}"
+		false
+	end
 
 end

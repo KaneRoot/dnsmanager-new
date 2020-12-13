@@ -27,9 +27,9 @@ class DNSManager::Client < IPC::Client
 
 	# Adding a full zone.
 	def user_zone_add(zone : DNSManager::Storage::Zone)
-		request = DNSManager::Request::AddZone.new zone
+		request = DNSManager::Request::AddOrUpdateZone.new zone
 		send_now @server_fd.not_nil!, request
-		parse_message [ DNSManager::Response::Success ], read
+		parse_message [ DNSManager::Response::Success, DNSManager::Response::InvalidZone ], read
 	end
 end
 

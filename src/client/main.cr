@@ -9,6 +9,7 @@ require "baguette-crystal-base"
 require "../config"
 
 require "./lib/*"
+require "../lib"
 
 class Context
 	class_property command  = "not-implemented"
@@ -75,7 +76,7 @@ class Actions
 				pp! zone
 				pp! @dnsmanagerd.user_zone_add zone
 			rescue e
-				puts "error for admin_maintainance #{subject}: #{e.message}"
+				puts "error for user_zone_add: #{e.message}"
 			end
 		end
 	end

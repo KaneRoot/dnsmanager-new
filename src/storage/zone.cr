@@ -7,6 +7,9 @@ class DNSManager::Storage::Zone
 	property domain    : String
 	property resources = [] of DNSManager::Storage::Zone::ResourceRecord
 
+	# We don't want to accept less than 30 seconds TTL.
+	class_property ttl_limit_min = 30
+
 	def initialize(@domain)
 	end
 
@@ -69,7 +72,9 @@ class DNSManager::Storage::Zone
 				errors << "invalid subdomain: #{@name}"
 			end
 
-			# TODO: impose a limit on the TTL
+			if @ttl < Zone.ttl_limit_min
+				errors << "invalid ttl: #{@ttl}, shouldn't be less than #{Zone.ttl_limit_min}"
+			end
 
 			unless Zone.is_ipv4_address_valid? @target
 				errors << "target not valid ipv4: #{@target}"
@@ -78,6 +83,7 @@ class DNSManager::Storage::Zone
 			errors
 		end
 	end
+
 	class AAAA < ResourceRecord
 		def get_errors : Array(Error)
 			errors = [] of Error
@@ -86,7 +92,9 @@ class DNSManager::Storage::Zone
 				errors << "invalid subdomain: #{@name}"
 			end
 
-			# TODO: impose a limit on the TTL
+			if @ttl < Zone.ttl_limit_min
+				errors << "invalid ttl: #{@ttl}, shouldn't be less than #{Zone.ttl_limit_min}"
+			end
 
 			unless Zone.is_ipv6_address_valid? @target
 				errors << "target not valid ipv6: #{@target}"
@@ -95,19 +103,95 @@ class DNSManager::Storage::Zone
 			errors
 		end
 	end
+
 	class TXT < ResourceRecord
+		def get_errors : Array(Error)
+			errors = [] of Error
+
+			unless Zone.is_subdomain_valid? @name
+				errors << "invalid subdomain: #{@name}"
+			end
+
+			if @ttl < Zone.ttl_limit_min
+				errors << "invalid ttl: #{@ttl}, shouldn't be less than #{Zone.ttl_limit_min}"
+			end
+
+			errors
+		end
 	end
+
 	class PTR < ResourceRecord
+		def get_errors : Array(Error)
+			errors = [] of Error
+
+			unless Zone.is_domain_valid? @target
+				errors << "invalid subdomain: #{@target}"
+			end
+
+			if @ttl < Zone.ttl_limit_min
+				errors << "invalid ttl: #{@ttl}, shouldn't be less than #{Zone.ttl_limit_min}"
+			end
+			errors
+		end
 	end
+
 	class NS < ResourceRecord
+		def get_errors : Array(Error)
+			errors = [] of Error
+
+			unless Zone.is_subdomain_valid? @name
+				errors << "invalid subdomain: #{@name}"
+			end
+
+			if @ttl < Zone.ttl_limit_min
+				errors << "invalid ttl: #{@ttl}, shouldn't be less than #{Zone.ttl_limit_min}"
+			end
+
+			errors
+		end
 	end
+
 	class CNAME < ResourceRecord
+		def get_errors : Array(Error)
+			errors = [] of Error
+
+			unless Zone.is_subdomain_valid? @name
+				errors << "invalid subdomain: #{@name}"
+			end
+
+			if @ttl < Zone.ttl_limit_min
+				errors << "invalid ttl: #{@ttl}, shouldn't be less than #{Zone.ttl_limit_min}"
+			end
+
+			unless Zone.is_subdomain_valid? @target
+				errors << "invalid target: #{@target}"
+			end
+			errors
+		end
 	end
 
 	class MX < ResourceRecord
 		property priority  : UInt32 = 10
 		def initialize(@name, @ttl, @target, @priority = 10)
 			@rrtype = "mx"
+		end
+
+		def get_errors : Array(Error)
+			errors = [] of Error
+
+			unless Zone.is_subdomain_valid? @name
+				errors << "invalid subdomain: #{@name}"
+			end
+
+			if @ttl < Zone.ttl_limit_min
+				errors << "invalid ttl: #{@ttl}, shouldn't be less than #{Zone.ttl_limit_min}"
+			end
+
+			unless Zone.is_domain_valid? @target
+				errors << "invalid target (domain): #{@target}"
+			end
+
+			errors
 		end
 	end
 
@@ -128,7 +212,7 @@ class DNSManager::Storage::Zone
 	def get_errors? : Array(Error)
 		errors = [] of Error
 		unless Zone.is_domain_valid? @domain
-			errors << "invalid domain"
+			errors << "invalid domain #{@domain}"
 		end
 
 		@resources.each do |r|

@@ -59,8 +59,28 @@ class DNSManager::Storage::Zone
 
 		def initialize(@name, @ttl, @target,
 			@mname, @rname,
-			@serial = 0, @refresh = 86400, @retry = 7200, @expire = 3600000)
+			@serial = 0.to_u64, @refresh = 86400.to_u64, @retry = 7200.to_u64, @expire = 3600000.to_u64)
 			@rrtype = "soa"
+		end
+
+		def get_errors : Array(Error)
+			errors = [] of Error
+
+			# TODO: name
+
+			if @ttl < Zone.ttl_limit_min
+				errors << "SOA invalid ttl: #{@ttl}, shouldn't be less than #{Zone.ttl_limit_min}"
+			end
+
+			# TODO: target
+			# TODO: mname
+			# TODO: rname
+			# TODO: serial
+			# TODO: refresh
+			# TODO: retry
+			# TODO: expire
+
+			errors
 		end
 	end
 
@@ -69,15 +89,15 @@ class DNSManager::Storage::Zone
 			errors = [] of Error
 
 			unless Zone.is_subdomain_valid? @name
-				errors << "invalid subdomain: #{@name}"
+				errors << "A invalid subdomain: #{@name}"
 			end
 
 			if @ttl < Zone.ttl_limit_min
-				errors << "invalid ttl: #{@ttl}, shouldn't be less than #{Zone.ttl_limit_min}"
+				errors << "A invalid ttl: #{@ttl}, shouldn't be less than #{Zone.ttl_limit_min}"
 			end
 
 			unless Zone.is_ipv4_address_valid? @target
-				errors << "target not valid ipv4: #{@target}"
+				errors << "A target not valid ipv4: #{@target}"
 			end
 
 			errors
@@ -89,15 +109,15 @@ class DNSManager::Storage::Zone
 			errors = [] of Error
 
 			unless Zone.is_subdomain_valid? @name
-				errors << "invalid subdomain: #{@name}"
+				errors << "AAAA invalid subdomain: #{@name}"
 			end
 
 			if @ttl < Zone.ttl_limit_min
-				errors << "invalid ttl: #{@ttl}, shouldn't be less than #{Zone.ttl_limit_min}"
+				errors << "AAAA invalid ttl: #{@ttl}, shouldn't be less than #{Zone.ttl_limit_min}"
 			end
 
 			unless Zone.is_ipv6_address_valid? @target
-				errors << "target not valid ipv6: #{@target}"
+				errors << "AAAA target not valid ipv6: #{@target}"
 			end
 
 			errors
@@ -109,11 +129,11 @@ class DNSManager::Storage::Zone
 			errors = [] of Error
 
 			unless Zone.is_subdomain_valid? @name
-				errors << "invalid subdomain: #{@name}"
+				errors << "TXT invalid subdomain: #{@name}"
 			end
 
 			if @ttl < Zone.ttl_limit_min
-				errors << "invalid ttl: #{@ttl}, shouldn't be less than #{Zone.ttl_limit_min}"
+				errors << "TXT invalid ttl: #{@ttl}, shouldn't be less than #{Zone.ttl_limit_min}"
 			end
 
 			errors
@@ -124,13 +144,26 @@ class DNSManager::Storage::Zone
 		def get_errors : Array(Error)
 			errors = [] of Error
 
-			unless Zone.is_domain_valid? @target
-				errors << "invalid subdomain: #{@target}"
+			# TODO: PTR name verification.
+			# PTR name is different from others.
+			# Its name contains numerical-only subdomains.
+			unless Zone.is_ptr_name_valid? @target
+				errors << "PTR invalid subdomain: #{@target}"
+			end
+
+			# The PTR name has to end with in-addr.arpa or ip6.arpa.
+			unless @name.ends_with?(/in-addr.arpa\.?/) || @name.ends_with?(/ip6.arpa\.?/)
+				errors << "PTR invalid name: doesn't end with 'in-addr.arpa' or 'ip6.arpa'"
 			end
 
 			if @ttl < Zone.ttl_limit_min
-				errors << "invalid ttl: #{@ttl}, shouldn't be less than #{Zone.ttl_limit_min}"
+				errors << "PTR invalid ttl: #{@ttl}, shouldn't be less than #{Zone.ttl_limit_min}"
 			end
+
+			unless Zone.is_domain_valid? @target
+				errors << "PTR invalid subdomain: #{@target}"
+			end
+
 			errors
 		end
 	end
@@ -140,11 +173,11 @@ class DNSManager::Storage::Zone
 			errors = [] of Error
 
 			unless Zone.is_subdomain_valid? @name
-				errors << "invalid subdomain: #{@name}"
+				errors << "NS invalid subdomain: #{@name}"
 			end
 
 			if @ttl < Zone.ttl_limit_min
-				errors << "invalid ttl: #{@ttl}, shouldn't be less than #{Zone.ttl_limit_min}"
+				errors << "NS invalid ttl: #{@ttl}, shouldn't be less than #{Zone.ttl_limit_min}"
 			end
 
 			errors
@@ -156,15 +189,15 @@ class DNSManager::Storage::Zone
 			errors = [] of Error
 
 			unless Zone.is_subdomain_valid? @name
-				errors << "invalid subdomain: #{@name}"
+				errors << "CNAME invalid subdomain: #{@name}"
 			end
 
 			if @ttl < Zone.ttl_limit_min
-				errors << "invalid ttl: #{@ttl}, shouldn't be less than #{Zone.ttl_limit_min}"
+				errors << "CNAME invalid ttl: #{@ttl}, shouldn't be less than #{Zone.ttl_limit_min}"
 			end
 
 			unless Zone.is_subdomain_valid? @target
-				errors << "invalid target: #{@target}"
+				errors << "CNAME invalid target: #{@target}"
 			end
 			errors
 		end
@@ -180,15 +213,15 @@ class DNSManager::Storage::Zone
 			errors = [] of Error
 
 			unless Zone.is_subdomain_valid? @name
-				errors << "invalid subdomain: #{@name}"
+				errors << "MX invalid subdomain: #{@name}"
 			end
 
 			if @ttl < Zone.ttl_limit_min
-				errors << "invalid ttl: #{@ttl}, shouldn't be less than #{Zone.ttl_limit_min}"
+				errors << "MX invalid ttl: #{@ttl}, shouldn't be less than #{Zone.ttl_limit_min}"
 			end
 
 			unless Zone.is_domain_valid? @target
-				errors << "invalid target (domain): #{@target}"
+				errors << "MX invalid target (domain): #{@target}"
 			end
 
 			errors
@@ -203,6 +236,23 @@ class DNSManager::Storage::Zone
 		def initialize(@name, @ttl, @target, @port, @protocol = "tcp", @priority = 10, @weight = 10)
 			@rrtype = "srv"
 		end
+
+		def get_errors : Array(Error)
+			errors = [] of Error
+
+			# SRV name should be created from scratch, client should send an empty name.
+			# WON'T FIX: name verification.
+
+			if @ttl < Zone.ttl_limit_min
+				errors << "SRV invalid ttl: #{@ttl}, shouldn't be less than #{Zone.ttl_limit_min}"
+			end
+
+			unless Zone.is_domain_valid? @target
+				errors << "SRV invalid target (domain): #{@target}"
+			end
+
+			errors
+		end
 	end
 
 	def to_s(io : IO)
@@ -215,10 +265,19 @@ class DNSManager::Storage::Zone
 			errors << "invalid domain #{@domain}"
 		end
 
+		# Checking each resource.
 		@resources.each do |r|
 			r.get_errors().each do |error|
 				errors << error
 			end
+		end
+
+		# Minimal resources: SOA and NS.
+		unless @resources.any? &.is_a?(Zone::SOA)
+			errors << "invalid zone: no SOA record"
+		end
+		unless @resources.any? &.is_a?(Zone::NS)
+			errors << "invalid zone: no NS record"
 		end
 
 		errors
@@ -247,6 +306,19 @@ class DNSManager::Storage::Zone
 		Baguette::Log.error "invalid zone subdomain #{subdomain}: #{e}"
 		false
 	end
+
+	# TODO: PTR name verification.
+	def self.is_ptr_name_valid?(subdomain) : Bool
+		if subdomain =~ /^(((?!-))(xn--|_{1,1})?[a-z0-9-]{0,61}[a-z0-9]{1,1}\.)*(xn--)?[a-z0-9][a-z0-9\-]{0,60}[a-z0-9]*[a-z]+|[a-z]+|[a-z][a-z0-9]+[a-z]+$/
+			true
+		else
+			false
+		end
+	rescue e
+		Baguette::Log.error "invalid zone subdomain #{subdomain}: #{e}"
+		false
+	end
+
 
 	# This only is "good enough for now".
 	# Regex only matches for invalid characters.

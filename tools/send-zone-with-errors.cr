@@ -78,6 +78,11 @@ zone.resources << DSZ::SOA.new   "mail", 60.to_u32, "::1",
 
 zone.resources << DSZ::NS.new   "mail", 60.to_u32, "::1"
 
+# MUST BE REFUSED: CNAME is exclusive.
+#                  If there is another record (including SOA or NS) for the same name, this should not work.
+zone.resources << DSZ::A.new     "www",  600.to_u32, "127.0.0.1"
+zone.resources << DSZ::CNAME.new "www",  600.to_u32, "other-domain.com"
+
 pp! dnsmanagerd.user_zone_add zone
 
 puts "dnsmanager: close"

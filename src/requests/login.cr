@@ -6,7 +6,7 @@ class DNSManager::Request
 		def initialize(@token)
 		end
 
-		def handle(dnsmanagerd : DNSManager::Service, event : IPC::Event::Events)
+		def handle(dnsmanagerd : DNSManager::Service, event : IPC::Event)
 			user, _ = dnsmanagerd.decode_token token
 			dnsmanagerd.logged_users[event.fd] = user
 

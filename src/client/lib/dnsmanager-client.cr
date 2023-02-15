@@ -1,8 +1,15 @@
 require "../../requests/*"
 
-class DNSManager::Client < IPC::Client
+class DNSManager::Client < IPC
+	property server_fd : Int32 = -1
+
 	def initialize
-		initialize "dnsmanager"
+		super()
+		fd = self.connect "dnsmanager"
+		if fd.nil?
+			raise "couldn't connect to 'auth' IPC service"
+		end
+		@server_fd = fd
 	end
 
 	# TODO: parse_message should raise exception if response not anticipated
@@ -14,33 +21,50 @@ class DNSManager::Client < IPC::Client
 		em << DNSManager::Response::Error
 		em.parse_ipc_json message
 	end
-end
 
+	#
+	# Simple users.
+	#
 
-# Simple users.
-class DNSManager::Client < IPC::Client
 	def login(token : String)
 		request = DNSManager::Request::Login.new token
-		send_now @server_fd.not_nil!, request
+		send_now request
 		parse_message [ DNSManager::Response::Success ], read
 	end
 
 	# Adding a full zone.
 	def user_zone_add(zone : DNSManager::Storage::Zone)
 		request = DNSManager::Request::AddOrUpdateZone.new zone
-		send_now @server_fd.not_nil!, request
+		send_now request
 		parse_message [ DNSManager::Response::Success, DNSManager::Response::InvalidZone ], read
 	end
-end
 
-# Admin stuff.
-class DNSManager::Client < IPC::Client
+	#
+	# Admin stuff.
+	#
+
 	def admin_maintainance(key : String, subject : DNSManager::Request::Maintainance::Subject, value : Int32? = nil)
 		request = DNSManager::Request::Maintainance.new(key,subject)
 		if value
 			request.value = value
 		end
-		send_now @server_fd.not_nil!, request
+		send_now request
 		parse_message [ DNSManager::Response::Success ], read
+	end
+
+	def send_now(msg : IPC::JSON)
+		m = IPCMessage::TypedMessage.new msg.type.to_u8, msg.to_json
+		write @server_fd, m
+	end
+
+	def send_now(type : Request::Type, payload)
+		m = IPCMessage::TypedMessage.new type.value.to_u8, payload
+		write @server_fd, m
+	end
+
+	def read
+		slice = self.read @server_fd
+		m = IPCMessage::TypedMessage.deserialize slice
+		m.not_nil!
 	end
 end

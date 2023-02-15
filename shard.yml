@@ -22,9 +22,9 @@ dependencies:
 
 
 targets:
-  dnsmanager:
+  dnsmanagerd:
     main: src/main.cr
   dnsmanager-client:
     main: src/client/main.cr
 
-license: MIT
+license: ISC

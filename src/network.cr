@@ -2,7 +2,7 @@ require "ipc"
 require "json"
 
 class IPC::JSON
-	def handle(service : IPC::Server, event : IPC::Event::Events)
+	def handle(service : IPC, event : IPC::Event)
 		raise "unimplemented"
 	end
 end

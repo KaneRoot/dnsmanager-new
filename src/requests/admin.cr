@@ -13,7 +13,7 @@ class DNSManager::Request
 		def initialize(@key, @subject)
 		end
 
-		def handle(dnsmanagerd : DNSManager::Service, event : IPC::Event::Events)
+		def handle(dnsmanagerd : DNSManager::Service, event : IPC::Event)
 			# This request means serious business.
 			raise AdminAuthorizationException.new if key != dnsmanagerd.authd.key
 

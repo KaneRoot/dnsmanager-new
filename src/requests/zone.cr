@@ -8,7 +8,7 @@ class DNSManager::Request
 		def initialize(@zone)
 		end
 
-		def handle(dnsmanagerd : DNSManager::Service, event : IPC::Event::Events)
+		def handle(dnsmanagerd : DNSManager::Service, event : IPC::Event)
 			user = dnsmanagerd.get_logged_user event
 			raise NotLoggedException.new if user.nil?
 

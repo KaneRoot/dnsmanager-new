@@ -24,22 +24,29 @@ require "./storage.cr"
 require "./network.cr"
 
 
-class DNSManager::Service < IPC::Server
+class DNSManager::Service < IPC
 	property configuration    : Baguette::Configuration::DNSManager
 	getter storage            : DNSManager::Storage
 	getter logged_users       : Hash(Int32, AuthD::User::Public)
 
 	property authd            : AuthD::Client
 
-	def initialize(@configuration, @authd : AuthD::Client)
-		@storage = DNSManager::Storage.new @configuration.storage_directory
+	def initialize(@configuration, @authd_key : String)
+		super()
+		@storage = DNSManager::Storage.new @configuration.storage_directory, @configuration.recreate_indexes
 
 		@logged_users       = Hash(Int32, AuthD::User::Public).new
 
-		super @configuration.service_name
+		# TODO: auth service isn't in the FDs pool.
+		# If the service crashes, dnsmanagerd won't know it.
+		@authd = AuthD::Client.new
+		authd.key = @authd_key
+
+		self.timer @configuration.ipc_timer
+		self.service_init @configuration.service_name
 	end
 
-	def get_logged_user(event : IPC::Event::Events)
+	def get_logged_user(event : IPC::Event)
 		@logged_users[event.fd]?
 	end
 
@@ -47,10 +54,13 @@ class DNSManager::Service < IPC::Server
 		@authd.decode_token token
 	end
 
-	def handle_request(event : IPC::Event::MessageReceived)
+	def handle_request(event : IPC::Event)
 		request_start = Time.utc
 
-		request = DNSManager.requests.parse_ipc_json event.message
+		array = event.message.not_nil!
+		slice = Slice.new array.to_unsafe, array.size
+		message = IPCMessage::TypedMessage.deserialize slice
+		request = DNSManager.requests.parse_ipc_json message.not_nil!
 
 		if request.nil?
 			raise "unknown request type"
@@ -81,42 +91,39 @@ class DNSManager::Service < IPC::Server
 		# in the responses. Allows identifying responses easily.
 		response.id = request.id
 
-		send event.fd, response
+		schedule event.fd, response
 
 		duration = Time.utc - request_start
 
-		response_str = response.class.name.sub /^DNSManager::Response::/, ""
+		response_name = response.class.name.sub /^DNSManager::Response::/, ""
 
 		if response.is_a? DNSManager::Response::Error
-			Baguette::Log.warning ">> #{response_str} (#{response.reason})"
+			Baguette::Log.warning ">> #{response_name} (#{response.reason})"
 		else
-			Baguette::Log.debug ">> #{response_str} (Total duration: #{duration})"
+			Baguette::Log.debug ">> #{response_name} (Total duration: #{duration})"
 		end
 	end
 
 	def run
 		Baguette::Log.title "Starting #{@configuration.service_name}"
 
-		@base_timer = configuration.ipc_timer
-		@timer      = configuration.ipc_timer
-
 		self.loop do |event|
 			begin
-				case event
-				when IPC::Event::Timer
+				case event.type
+				when LibIPC::EventType::Timer
 					Baguette::Log.debug "Timer" if @configuration.print_ipc_timer
 
-				when IPC::Event::Connection
+				when LibIPC::EventType::Connection
 					Baguette::Log.debug "connection from #{event.fd}"
 
-				when IPC::Event::Disconnection
+				when LibIPC::EventType::Disconnection
 					Baguette::Log.debug "disconnection from #{event.fd}"
 					@logged_users.delete event.fd
 
-				when IPC::Event::MessageSent
+				when LibIPC::EventType::MessageTx
 					Baguette::Log.debug "message sent to #{event.fd}"
 
-				when IPC::Event::MessageReceived
+				when LibIPC::EventType::MessageRx
 					Baguette::Log.debug "message received from #{event.fd}"
 					handle_request event
 
@@ -125,7 +132,7 @@ class DNSManager::Service < IPC::Server
 					if event.responds_to?(:fd)
 						fd = event.fd
 						Baguette::Log.warning "closing #{fd}"
-						remove_fd fd
+						close fd
 						@logged_users.delete fd
 					end
 
@@ -206,10 +213,9 @@ def main
 		exit 0
 	end
 
-	authd = AuthD::Client.new
-	authd.key = authd_configuration.shared_key.not_nil!
+	authd_key = authd_configuration.shared_key.not_nil!
 
-	service = DNSManager::Service.new configuration, authd
+	service = DNSManager::Service.new configuration, authd_key
 	service.run
 end
 
